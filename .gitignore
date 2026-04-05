@@ -12,7 +12,7 @@ synthetic_os/data/images/
 synthetic_output_*.csv
 archive_log.jsonl
 audit_log.jsonl
-budget_tracker.json
+
 meta_learning_log.jsonl
 files.txt
 provenance/
