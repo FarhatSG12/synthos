@@ -57,7 +57,22 @@ class BudgetScanner:
         self._total_budget = getattr(cfg, "privacy_budget", 3.0) if cfg else 3.0
         self._consumed     = self._load_consumed()
 
+    # ── Class-level helpers (no instance needed) ──────────────────────────────
+    @staticmethod
+    def wipe_log():
+        """Erase the on-disk budget log without requiring an instance.
+
+        Call this from app startup *before* creating any BudgetScanner or
+        Orchestrator instances so every new browser session starts at ε=0.
+        """
+        BUDGET_LOG.write_text(json.dumps([]))
+        print("  [BudgetScanner] Budget log wiped for new session.")
+
     def scan(self, schema, dataset_name: str = "") -> BudgetScanResult:
+        # Always re-read from disk so this instance sees resets performed by
+        # other instances (e.g. the app-startup reset) or other processes.
+        self._consumed = self._load_consumed()
+
         columns = getattr(schema, "columns", [])
         col_str = " ".join(c.lower() for c in columns)
 
@@ -100,7 +115,10 @@ class BudgetScanner:
         return sum(e.get("epsilon", 0.0) for e in log)
 
     def reset(self):
-        """Wipe the budget log. Called once per app session on startup."""
+        """Wipe the budget log and reset in-memory state.
+
+        Safe to call even if another instance already called wipe_log().
+        """
         self._consumed = 0.0
         BUDGET_LOG.write_text(json.dumps([]))
         print("  [BudgetScanner] Budget log reset for new session.")

@@ -247,10 +247,13 @@ for k, v in _DEFAULTS.items():
 if "budget_reset_done" not in st.session_state:
     try:
         from synthetic_os.brain.budget_scanner import BudgetScanner
-        from synthetic_os.config.system_config import SystemConfig
-        BudgetScanner(SystemConfig()).reset()
-    except Exception:
-        pass  # never crash the UI over a budget reset
+        BudgetScanner.wipe_log()   # static — no instance or SystemConfig needed
+    except Exception as _reset_err:
+        # Log so the error is visible in the Streamlit terminal, but never
+        # crash the UI over a budget reset.
+        import traceback
+        print(f"[SynthOS] WARNING: budget reset failed — {_reset_err}\n"
+              f"{traceback.format_exc()}")
     st.session_state["budget_reset_done"] = True
 
 # ── Thread-safe shared state (background thread ONLY writes here) ─────────────
