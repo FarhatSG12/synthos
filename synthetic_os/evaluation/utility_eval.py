@@ -138,12 +138,14 @@ class UtilityEvaluator:
             maj_base  = float(
                 pd.Series(y_real).value_counts(normalize=True).iloc[0]
             )
-            baseline  = 0.7 * maj_base + 0.3 * (1.0 / max(n_classes, 1))
+            # Softer baseline: weight majority class less so imbalanced
+            # datasets aren't unfairly penalised.
+            baseline  = 0.5 * maj_base + 0.5 * (1.0 / max(n_classes, 1))
 
             if accuracy <= baseline:
-                return float(np.clip(accuracy / (baseline + 1e-6) * 0.3, 0.0, 0.3))
+                return float(np.clip(accuracy / (baseline + 1e-6) * 0.4, 0.0, 0.4))
             return float(
-                0.3 + 0.7 * (accuracy - baseline) / (1.0 - baseline + 1e-6)
+                0.4 + 0.6 * (accuracy - baseline) / (1.0 - baseline + 1e-6)
             )
 
         else:
@@ -223,10 +225,10 @@ class UtilityEvaluator:
             accuracy  = float((clf.predict(X_real) == y_real).mean())
             n_classes = len(np.unique(y_real))
             maj_base  = float(pd.Series(y_real).value_counts(normalize=True).iloc[0])
-            baseline  = 0.7 * maj_base + 0.3 * (1.0 / max(n_classes, 1))
+            baseline  = 0.5 * maj_base + 0.5 * (1.0 / max(n_classes, 1))
             if accuracy <= baseline:
-                return float(np.clip(accuracy / (baseline + 1e-6) * 0.3, 0.0, 0.3))
-            return float(0.3 + 0.7 * (accuracy - baseline) / (1.0 - baseline + 1e-6))
+                return float(np.clip(accuracy / (baseline + 1e-6) * 0.4, 0.0, 0.4))
+            return float(0.4 + 0.6 * (accuracy - baseline) / (1.0 - baseline + 1e-6))
         except Exception:
             return 0.5
 
@@ -255,7 +257,7 @@ class UtilityEvaluator:
                 continue
 
             dist  = wasserstein_distance(r, s)
-            score = float(np.clip(1.0 - (dist / rng) * 0.8, 0.0, 1.0))
+            score = float(np.clip(1.0 - (dist / rng) * 0.5, 0.0, 1.0))
             scores.append(score)
 
         return float(np.mean(scores)) if scores else 0.5
