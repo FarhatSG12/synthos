@@ -252,7 +252,8 @@ class Orchestrator:
 
             # 10. Utility
             _progress(10, "Evaluating data utility...")
-            utility   = self.utility_eval.evaluate(df, synth_readable, schema.target_col)
+            utility   = self.utility_eval.evaluate(df, synth_readable, schema.target_col,
+                                                    modality=getattr(schema, "modality", "tabular"))
             realism   = self.realism_eval.evaluate(df, synth_readable)
             real_std  = df.select_dtypes(include=[np.number]).std().mean()
             synth_std = synth_readable.select_dtypes(include=[np.number]).std().mean()

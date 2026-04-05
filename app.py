@@ -241,6 +241,18 @@ for k, v in _DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+# ── Reset privacy budget once per browser session ───────────────────────────
+# Fires once per browser session (guarded by session_state flag) so
+# accumulated epsilon from previous server runs never blocks a new user.
+if "budget_reset_done" not in st.session_state:
+    try:
+        from synthetic_os.brain.budget_scanner import BudgetScanner
+        from synthetic_os.config.system_config import SystemConfig
+        BudgetScanner(SystemConfig()).reset()
+    except Exception:
+        pass  # never crash the UI over a budget reset
+    st.session_state["budget_reset_done"] = True
+
 # ── Thread-safe shared state (background thread ONLY writes here) ─────────────
 # Uses cache_resource so the SAME dict object is returned on every Streamlit
 # rerun — the background thread and the UI always share the same reference.
@@ -533,13 +545,43 @@ if page == "Generate":
                 st.success(f"Loaded {label}: {df_loaded.shape[0]:,} rows × {df_loaded.shape[1]} cols")
 
     st.markdown('<h2>or Upload Your Own CSV</h2>', unsafe_allow_html=True)
-    uploaded = st.file_uploader("Upload CSV", type=["csv"], label_visibility="collapsed")
-    if uploaded:
-        df_up = pd.read_csv(uploaded)
-        name_up = uploaded.name.replace(".csv","")
-        text_cols = [c for c in df_up.columns if df_up[c].dtype==object and df_up[c].str.len().mean()>50]
-        st.session_state.update({"df": df_up, "ds_name": name_up, "ds_target": None, "ds_modality": "text" if text_cols else "tabular", "ds_temporal": False})
-        st.success(f"Uploaded: {df_up.shape[0]:,} rows × {df_up.shape[1]} columns")
+    uploaded = st.file_uploader("Upload CSV", type=["csv"], label_visibility="collapsed",
+                                key="csv_uploader")
+    if uploaded is not None:
+        try:
+            df_up = pd.read_csv(uploaded)
+        except Exception as _ue:
+            st.error(f"Could not read CSV: {_ue}")
+            df_up = None
+
+        if df_up is not None and len(df_up.columns) > 0:
+            name_up   = uploaded.name.replace(".csv", "")
+            text_cols = [c for c in df_up.columns
+                         if df_up[c].dtype == object
+                         and df_up[c].dropna().astype(str).str.len().mean() > 50]
+            auto_mod  = "text" if text_cols else "tabular"
+            # Auto-suggest target: last low-cardinality column, else last column
+            auto_target = next(
+                (c for c in reversed(df_up.columns.tolist()) if df_up[c].nunique() <= 20),
+                df_up.columns[-1]
+            )
+            st.session_state.update({
+                "df": df_up, "ds_name": name_up,
+                "ds_target": auto_target,
+                "ds_modality": auto_mod,
+                "ds_temporal": False,
+            })
+            st.success(f"✓ Loaded {name_up} — {df_up.shape[0]:,} rows × {df_up.shape[1]} columns")
+            with st.expander("Preview uploaded data", expanded=False):
+                st.dataframe(df_up.head(8), use_container_width=True)
+                _col_info = pd.DataFrame({
+                    "Column":      df_up.columns.tolist(),
+                    "Type":        [str(df_up[c].dtype) for c in df_up.columns],
+                    "Non-null":    [int(df_up[c].notna().sum()) for c in df_up.columns],
+                    "Unique vals": [int(df_up[c].nunique()) for c in df_up.columns],
+                })
+                st.dataframe(_col_info, use_container_width=True)
+            st.info(f"Auto-detected modality: **{auto_mod}** | Suggested target column: **{auto_target}** — adjust below if needed.")
 
     df = st.session_state.df
 

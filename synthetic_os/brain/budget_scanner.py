@@ -99,6 +99,12 @@ class BudgetScanner:
         log = self._load_log()
         return sum(e.get("epsilon", 0.0) for e in log)
 
+    def reset(self):
+        """Wipe the budget log. Called once per app session on startup."""
+        self._consumed = 0.0
+        BUDGET_LOG.write_text(json.dumps([]))
+        print("  [BudgetScanner] Budget log reset for new session.")
+
     def _load_log(self) -> list:
         if BUDGET_LOG.exists():
             try:
